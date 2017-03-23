@@ -26,7 +26,7 @@ class FileQueue implements QueueInterface{
 	 * @param int|null $limit_exec_count    Number of execution allowed by $limit_exec_ms_count range
 	 * @param int|null $limit_exec_ms_count Range of millisecond to allow $limit_exec_count process execution
 	 *
-	 * @throws Exception
+	 * @throws \Exception
 	 */
 	public function __construct( string $queue_name, bool $log = false, int $limit_exec_count = null, int $limit_exec_ms_count = null ) {
 		$this->queue_filepath = __DIR__ . DIRECTORY_SEPARATOR . $queue_name . '.queue';
@@ -36,10 +36,10 @@ class FileQueue implements QueueInterface{
 		$this->queue_resource = fopen( $this->queue_filepath, "c+" );
 		
 		if ( $limit_exec_count && !$limit_exec_ms_count ) {
-			throw new Exception( 'limit_exec_ms_count can\'t be null if limit_exec_count is provided' );
+			throw new \Exception( 'limit_exec_ms_count can\'t be null if limit_exec_count is provided' );
 		}
 		if ( $limit_exec_ms_count && !$limit_exec_count ) {
-			throw new Exception( 'limit_exec_count can\'t be null if limit_exec_ms_count is provided' );
+			throw new \Exception( 'limit_exec_count can\'t be null if limit_exec_ms_count is provided' );
 		}
 		
 		if ( $limit_exec_count ) {
@@ -64,7 +64,7 @@ class FileQueue implements QueueInterface{
 			$ms  = isset( $arr[ 1 ] ) ? $arr[ 1 ] : 0;
 			
 			// list( $ts, $ms ) = explode( ".", microtime( true ) );
-			return new DateTime( date( "Y-m-d H:i:s.", $ts ) . str_pad( $ms, 6, 0, STR_PAD_RIGHT ), $timezone );
+			return new \DateTime( date( "Y-m-d H:i:s.", $ts ) . str_pad( $ms, 6, 0, STR_PAD_RIGHT ), $timezone );
 		};
 		
 		
@@ -79,12 +79,12 @@ class FileQueue implements QueueInterface{
 	 * @param  callable $callback   Function to execute when your turn is arrived
 	 *
 	 * @return bool Return true if your turn is passed, false when timeout or an error occured
-	 * @throws Exception
+	 * @throws \Exception
 	 */
 	public function enterInQueue( int $ms_timeout = 0, $callback ) {
 		// test si le callback est callable
 		if ( !is_callable( $callback ) ) {
-			throw new Exception( 'Callback is not callable' );
+			throw new \Exception( 'Callback is not callable' );
 		}
 		// recuperation du pid courrant
 		$current_pid = getmypid();
