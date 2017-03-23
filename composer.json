@@ -1,0 +1,21 @@
+{
+  "name" : "mvedie/php-simple-queue",
+  "type" : "library",
+  "description" : "A simple package to manage queue when you want execute tasks.",
+  "keywords" : [],
+  "authors" : [
+	{
+	  "name" : "Mathieu Vedie",
+	  "email" : "m.vedie@dreamcentury.com"
+	}
+  ],
+  "minimum-stability" : "dev",
+  "require" : {
+	"ext-pcntl": "*"
+  },
+  "autoload" : {
+	"psr-4" : {
+	  "PhpSimpleQueue\\" : "src"
+	}
+  }
+}
