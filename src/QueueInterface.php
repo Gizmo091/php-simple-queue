@@ -9,16 +9,15 @@
 namespace PhpSimpleQueue;
 
 interface QueueInterface {
-	
-	
 	/**
 	 * Function to entrer in queue and execute callback if its your turn
 	 *
 	 * @param int       $ms_timeout Maximum time to obtain his turn in queue
 	 * @param  callable $callback   Function to execute when your turn is arrived
+	 * @param  mixed    $output     Output of the callback function if there is one
 	 *
 	 * @return bool Return true if your turn is passed, false when timeout or an error occured
 	 * @throws \Exception
 	 */
-	public function enterInQueue( int $ms_timeout = 0, $callback );
+	public function enterInQueue( int $ms_timeout = 0, $callback, &$output );
 }

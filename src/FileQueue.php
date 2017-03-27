@@ -5,9 +5,10 @@
  * Date: 23/03/2017
  * Time: 15:20
  */
+
 namespace PhpSimpleQueue;
 
-class FileQueue implements QueueInterface{
+class FileQueue implements QueueInterface {
 	//	protected static $queue_file = __DIR__ . DIRECTORY_SEPARATOR . 'queue.q';
 	/** @var null|string File path for the queue file */
 	protected $queue_filepath = null;
@@ -17,6 +18,19 @@ class FileQueue implements QueueInterface{
 	protected $queue_resource = null;
 	/** @var int|null Time in ms to wait before unlock the resource */
 	protected $wait_before_unlock = null;
+	
+	/**
+	 * @param array ...$functions
+	 *
+	 * @throws \Exception
+	 */
+	private function verifyCallableFunctions( ...$functions ){
+		foreach( $functions as $function ){
+			if( !is_callable( $function )){
+				throw new \Exception( "Function $function is not callable" );
+			}
+		}
+	}
 	
 	/**
 	 * FileQueue constructor.
@@ -29,6 +43,8 @@ class FileQueue implements QueueInterface{
 	 * @throws \Exception
 	 */
 	public function __construct( string $queue_name, bool $log = false, int $limit_exec_count = null, int $limit_exec_ms_count = null ) {
+		$this->verifyCallableFunctions( "getmypid", "microtime", "flock", "fgets", "fseek", "fwrite", "ftruncate", "pcntl_fork", "posix_kill" );
+		
 		$this->queue_filepath = __DIR__ . DIRECTORY_SEPARATOR . $queue_name . '.queue';
 		if ( $log ) {
 			$this->log_filepath = __DIR__ . DIRECTORY_SEPARATOR . $queue_name . '.log';
@@ -54,6 +70,10 @@ class FileQueue implements QueueInterface{
 	 * @param string $type
 	 */
 	private function log( $pid, string $type ) {
+		if( !isset($this->log_filepath) ){
+			return;
+		}
+		
 		$current_date = function() {
 			// TimeZone
 			$timezone = new \DateTimeZone( "UTC" );
@@ -69,7 +89,9 @@ class FileQueue implements QueueInterface{
 		
 		
 		$text = "$type : (PID $pid) @" . $current_date()->format( "Y-m-d G:i:s.u" ) . PHP_EOL;
+		$oldumask = umask(0);
 		file_put_contents( $this->log_filepath, $text, FILE_APPEND );
+		umask($oldumask);
 	}
 	
 	/**
@@ -77,12 +99,13 @@ class FileQueue implements QueueInterface{
 	 *
 	 * @param int       $ms_timeout Maximum time to obtain his turn in queue
 	 * @param  callable $callback   Function to execute when your turn is arrived
+	 * @param  mixed    $output     Output of the callback function if there is one
 	 *
 	 * @return bool Return true if your turn is passed, false when timeout or an error occured
 	 * @throws \Exception
 	 */
-	public function enterInQueue( int $ms_timeout = 0, $callback ) {
-		// test si le callback est callable
+	public function enterInQueue( int $ms_timeout = 0, $callback, &$output ) {
+		// Callback must be callable
 		if ( !is_callable( $callback ) ) {
 			throw new \Exception( 'Callback is not callable' );
 		}
@@ -111,7 +134,25 @@ class FileQueue implements QueueInterface{
 		$this->log( $current_pid, 'QUEUED' );
 		
 		
-		while ( flock( $this->queue_resource, LOCK_EX ) && ( 0 === fseek( $this->queue_resource, 0, SEEK_SET ) ) && ( $data = fgets( $this->queue_resource ) ) && ( $queue = unserialize( $data ) ) && ( current( $queue ) != $current_pid ) ) {
+		while ( flock( $this->queue_resource, LOCK_EX ) && ( 0 === fseek( $this->queue_resource, 0, SEEK_SET ) ) && ( $data = fgets( $this->queue_resource ) )
+				&& ( $queue = unserialize( $data ) )
+				&& ( current( $queue ) != $current_pid ) ) {
+			// Clean PID
+			$pid_in_queue = current( $queue );
+			if ( ! is_dir( "/proc/$pid_in_queue" ) ) {
+				while( !is_dir( "/proc/$pid_in_queue" ) ){
+					unset( $queue[ key( $queue ) ] );
+					$this->log( $pid_in_queue, 'CLEANED' );
+					$pid_in_queue = next( $queue );
+				}
+				fseek( $this->queue_resource, 0, SEEK_SET );
+				$serial = serialize( $queue );
+				fwrite( $this->queue_resource, $serial );
+				ftruncate( $this->queue_resource, strlen( $serial ) );
+				flock( $this->queue_resource, LOCK_UN );
+				continue;
+			}
+			
 			// timeout
 			if ( $time_max && $time_max < ( microtime( true ) * 1000000 ) ) {
 				foreach ( $queue as $k => $val ) {
@@ -140,7 +181,8 @@ class FileQueue implements QueueInterface{
 		$pid = pcntl_fork();
 		if ( $pid ) {
 			$this->log( $current_pid, 'PASSED' );
-			$callback();
+			
+			$output = $callback();
 			
 			return true;
 		}
@@ -166,7 +208,7 @@ class FileQueue implements QueueInterface{
 			}
 			flock( $this->queue_resource, LOCK_UN );
 			$this->log( $current_pid, 'REMOVED' );
-			die();
+			posix_kill(getmypid(), SIGKILL );
 		}
 		elseif ( $pid == -1 ) {
 			foreach ( $queue as $k => $val ) {
