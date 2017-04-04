@@ -49,8 +49,13 @@ class FileQueue implements QueueInterface {
 		if ( $log ) {
 			$this->log_filepath = __DIR__ . DIRECTORY_SEPARATOR . $queue_name . '.log';
 		}
+		$oldumask = umask(0);
 		$this->queue_resource = fopen( $this->queue_filepath, "c+" );
+		umask($oldumask);
 		
+		if ( null === $this->queue_resource ) {
+			throw new \Exception( "Queue resource file failed to be created" );
+		}
 		if ( $limit_exec_count && !$limit_exec_ms_count ) {
 			throw new \Exception( 'limit_exec_ms_count can\'t be null if limit_exec_count is provided' );
 		}
@@ -183,12 +188,12 @@ class FileQueue implements QueueInterface {
 			$this->log( $current_pid, 'PASSED' );
 			
 			$output = $callback();
+			pcntl_wait( $status );
 			
 			return true;
 		}
 		elseif ( $pid == 0 ) {
 			
-			//			usleep( 200 * 1000 );
 			$before = ( microtime( true ) * 1000000 );
 			foreach ( $queue as $k => $val ) {
 				if ( $val === $current_pid ) {
@@ -209,6 +214,7 @@ class FileQueue implements QueueInterface {
 			flock( $this->queue_resource, LOCK_UN );
 			$this->log( $current_pid, 'REMOVED' );
 			posix_kill(getmypid(), SIGKILL );
+			die();
 		}
 		elseif ( $pid == -1 ) {
 			foreach ( $queue as $k => $val ) {
